@@ -28,5 +28,3 @@
 #   metadata = {
 #     sshKeys = "${var.ssh_user}:${file(var.ssh_pub)}"
 #   }
-
-<<
