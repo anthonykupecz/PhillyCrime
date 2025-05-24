@@ -37,6 +37,7 @@ resource "google_compute_instance" "instance" {
       private_key = file(var.ssh_private)
     }
     inline = [
+      "git clone https://github.com/anthonykupecz/PhillyCrime.git",
       "sudo apt-get install wget",
       "wget https://repo.anaconda.com/archive/Anaconda3-2022.10-Linux-x86_64.sh",
       "bash Anaconda3-2022.10-Linux-x86_64.sh -b -p /home/anthonykupeczbitch/anaconda3",
@@ -45,7 +46,7 @@ resource "google_compute_instance" "instance" {
       "conda create -y -n conda_venv python=3.9",
       "export PATH=/home/anthonykupeczbitch/anaconda3/envs/conda_venv/bin:$PATH",
       "source activate conda_venv",
-      "cd /home/anthonykupeczbitch/",
+      "cd /home/anthonykupeczbitch/PhillyCrime",
       "pip install requests pandas pandas-gbq pathlib pyarrow dbt-bigquery dbt-core jupyter gcsfs"
     ]
   }
