@@ -58,8 +58,9 @@ services:
     
   phillycrimedb: # This is the db that will have our data and is the server name for pgadmin
     build: ./Docker/LocalDB
+    container_name: phillycrimedb2
     volumes:
-      - ./Volumes/phillycrimedata:/var/lib/postgresql/data
+      - ./Docker/Volumes/phillycrimedata:/var/lib/postgresql/data
     ports: # it is exposed with these ports so that we can access it through port mapping
       - "5432:5432"
     depends_on:
@@ -70,7 +71,7 @@ services:
   pgadmin: # This holds the info to save state for pgadmin 
     build: ./Docker/pgadmin
     volumes:
-      - "./Volumes/pgadmin_data:/var/lib/pgadmin"
+      - "./Docker/Volumes/pgadmin_data:/var/lib/pgadmin"
     ports:
       - "8085:80"
     depends_on:
