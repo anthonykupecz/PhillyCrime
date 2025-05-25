@@ -1,0 +1,29 @@
+id: kv_setup
+namespace: phillycrime
+
+tasks:
+  - id: gcp_project_id
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_PROJECT_ID
+    kvType: STRING
+    value: phillycrime
+
+  - id: gcp_location
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_LOCATION
+    kvType: STRING
+    value: us-central1
+
+  - id: gcp_bucket_name
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_BUCKET_NAME
+    kvType: STRING
+    value: phillycrime_crime_bucket
+
+  - id: gcp_dataset
+    type: io.kestra.plugin.core.kv.Set
+    key: GCP_DATASET
+    kvType: STRING
+    value: philly_crime_db
+
+  #curl -X POST http://localhost:8080/api/v1/flows/import -F fileUpload=@KestraFlows/kv_setup.yaml

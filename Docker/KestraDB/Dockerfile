@@ -1,6 +1,6 @@
 # Dockerfile for creating the db that will store kestra metadata
 # DB will be unexposed, since kestra will communicate in network 
-FROM postgres:14.3
+FROM postgres
 
 # Set environment variables for the database
 ENV POSTGRES_DB=kestra

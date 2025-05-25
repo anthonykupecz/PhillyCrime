@@ -1,0 +1,24 @@
+variables:
+  base_url: 'https://phl.carto.com/api/v2/sql?filename=incidents_part1_part2&format=csv&q=SELECT%20*%20,%20ST_Y(the_geom)%20AS%20lat,%20ST_X(the_geom)%20AS%20lng%20FROM%20incidents_part1_part2%20WHERE%20dispatch_date_time%20%3E=%20%27'
+  mid_url: '-01-01%27%20AND%20dispatch_date_time%20%3C%20%27'
+  end_url: '-01-01%27'
+  full_url: "{{vars.base_url}}{{inputs.year}}{{vars.mid_url}}{{inputs.year | dateAdd(1, 'YEARS'))}}{{vars.end_url}}"
+  output_name: "crime_{{inputs.year}}.csv"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/{{vars.output_name}}"
+  table: "{{kv('GCP_DATASET')}}.Crime_{{inputs.year}}"
+  data: "{{outputs.extract.outputFiles[inputs.taxi ~ '_tripdata_' ~ (trigger.date | date('yyyy-MM')) ~ '.csv']}}"
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{render(vars.output_name)}}"
+
+  - id: extract
+    type: io.kestra.plugin.scripts.shell.Commands
+    outputFiles:
+      - "*.csv"
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    commands:
+      - wget -q {{render(vars.full_url)}} -O {{render(vars.output_fame)}}

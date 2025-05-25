@@ -1,5 +1,5 @@
 # Dockerfile for creating the db that will store crime data
-FROM postgres:14.3
+FROM postgres
 
 # Set environment variables for the database
 ENV POSTGRES_DB=phillycrime
