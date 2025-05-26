@@ -1,0 +1,101 @@
+id: weather_historical
+namespace: phillycrime
+description: |
+  Flow to grab average temperature data by day for historical philadelphia
+
+variables:
+  table: "{{kv('GCP_DATASET')}}.temps"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/weather.csv"
+  
+
+
+
+tasks:
+    # Script to grab historical philly data
+  - id: extract
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - 'weather.csv'
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    warningOnStdErr: false
+    beforeCommands:
+    - pip install pandas lxml
+    script: | 
+      import pandas as pd
+      import re
+      import requests
+      from datetime import date, timedelta,  datetime
+
+
+      # Set up date range
+      sdate = pd.to_datetime('2025-05-23')
+      edate = date.today()
+      dates = pd.date_range(sdate,edate,freq='d')
+
+      # Get rid of dashes in the date
+      dates = dates.strftime('%Y%m%d')
+
+
+      base_url = 'https://api.weather.com/v1/location/KPHL:9:US/observations/historical.json?apiKey=e1f10a1e78da46f5b10a1e78da96f525&units=e&startDate='
+      phl_weather = []
+
+      # Get the average temp for each date
+      for date in dates:
+        full_url = base_url + date
+        response = requests.get(full_url).json()['observations']
+
+        total = 0
+        num_obs = 0
+        for obs in response:
+          if obs['temp'] != None:
+            total += obs['temp']
+            num_obs += 1
+        avg_temp = total / num_obs
+
+        phl_weather.append([str(datetime.strptime(date, '%Y%m%d').date()), avg_temp])
+
+      # Convert to a dataframe
+      cols = ['Date', 'avg_temp']
+      phl_weather = pd.DataFrame(phl_weather, columns=cols)
+
+      # Convert date to date type
+      phl_weather['Date'] = pd.to_datetime(phl_weather['Date'])
+      
+      phl_weather.to_csv('weather.csv', index=False)
+
+  - id: upload_gcs
+    type: io.kestra.plugin.gcp.gcs.Upload
+    from: "{{outputs.extract.outputFiles['weather.csv']}}"
+    to: "{{render(vars.gcs_file)}}"
+
+      # Create the BQ table that will hold final data
+  - id: bq_weather
+    type: io.kestra.plugin.gcp.bigquery.Query
+    sql: |
+          LOAD DATA OVERWRITE phillycrime.philly_crime_db.weather
+          (
+            date DATE OPTIONS(description='Date of record')
+            ,avg_temp BIGNUMERIC OPTIONS(description='Average temperature in philadelphia of corresponding day')
+          )
+          FROM FILES (
+            skip_leading_rows=1,
+            format = 'CSV',
+            uris = ['{{render(vars.gcs_file)}}']);
+
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+
+    # Delete bucket after use 
+  - id: delete
+    type: io.kestra.plugin.gcp.gcs.Delete
+    uri: "{{render(vars.gcs_file)}}"
+
+pluginDefaults:
+  - type: io.kestra.plugin.gcp
+    values:
+      serviceAccount: "{{kv('GCP_CREDS')}}"
+      projectId: "{{kv('GCP_PROJECT_ID')}}"
+      location: "{{kv('GCP_LOCATION')}}"
+      bucket: "{{kv('GCP_BUCKET_NAME')}}"
+
