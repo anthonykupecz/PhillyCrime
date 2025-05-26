@@ -1,0 +1,93 @@
+id: playground
+namespace: phillycrime
+description: |
+  Flow to grab philadelphia playground data from open data philly website once.
+
+ 
+variables:
+  url: 'https://opendata.arcgis.com/datasets/899c807e205244278b3f39421be8489c_0.csv'
+  output_name: "philly_playground.csv"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/{{vars.output_name}}"
+  table: "{{kv('GCP_DATASET')}}.philly_playground"
+  data: "{{outputs.extract.outputFiles['philly_playground.csv']}}"
+
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{render(vars.output_name)}}"
+
+    # Task to download the playground csv file 
+  - id: extract
+    type: io.kestra.plugin.scripts.shell.Commands
+    outputFiles:
+      - "*.csv"
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    commands:
+      - curl -s -o {{render(vars.output_name)}} -L '{{render(vars.url)}}'
+
+    # Extract certain cols 
+  - id: transform_data
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - '{{render(vars.output_name)}}'
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    warningOnStdErr: false
+    beforeCommands:
+    - pip install pandas
+    script: | 
+      import pandas as pd
+      
+      # Load csv
+      df = pd.read_csv("{{render(vars.data)}}")
+      
+      # Clean a little
+      keep_cols = ['X', 'Y', 'OBJECTID', 'PARK_NAME', 'AGE_RANGE']
+      df = df[keep_cols]
+      
+      df.to_csv('{{render(vars.output_name)}}', index=False)
+
+  - id: upload_gcs
+    type: io.kestra.plugin.gcp.gcs.Upload
+    from: "{{outputs.transform_data.outputFiles[render(vars.output_name)]}}"
+    to: "{{render(vars.gcs_file)}}"
+
+   # Create the BQ table that will hold final data
+  - id: bq_playground
+    type: io.kestra.plugin.gcp.bigquery.Query
+    sql: |
+          LOAD DATA OVERWRITE phillycrime.philly_crime_db.playground
+          (
+            X BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of playground ')
+            ,Y BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of playground')
+            ,OBJECTID INTEGER OPTIONS(description='Unique identifier for row from the source')
+            ,PARK_NAME STRING OPTIONS(description='String representing the playground name')
+            ,AGE_RANGE STRING OPTIONS(description='String representing age category of playground')
+          )
+          FROM FILES (
+            skip_leading_rows=1,
+            format = 'CSV',
+            uris = ['{{render(vars.gcs_file)}}']);
+
+
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+
+    # Delete bucket after use 
+  - id: delete
+    type: io.kestra.plugin.gcp.gcs.Delete
+    uri: gs://{{kv('GCP_BUCKET_NAME')}}/{{render(vars.output_name)}}
+
+pluginDefaults:
+  - type: io.kestra.plugin.gcp
+    values:
+      serviceAccount: "{{kv('GCP_CREDS')}}"
+      projectId: "{{kv('GCP_PROJECT_ID')}}"
+      location: "{{kv('GCP_LOCATION')}}"
+      bucket: "{{kv('GCP_BUCKET_NAME')}}"
+
+
+
