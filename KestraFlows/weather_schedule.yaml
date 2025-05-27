@@ -1,0 +1,150 @@
+id: weather_schedule
+namespace: phillycrime
+description: |
+  Flow to grab average temperature data by day for philadelphia
+
+
+
+variables:
+  today_url: "{{ now() | dateAdd(-4, 'HOURS') | date('yyyyMMdd')}}"
+  today_file: "{{ now() | dateAdd(-4, 'HOURS') | date('yyyy-MM-dd')}}"
+  url: "https://api.weather.com/v1/location/KPHL:9:US/observations/historical.json?apiKey=e1f10a1e78da46f5b10a1e78da96f525&units=e&startDate={{vars.today_url}}"
+  output_name: "temp_{{vars.today_file}}.csv"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/{{vars.output_name}}"
+  table: "{{kv('GCP_DATASET')}}.weather"
+
+
+tasks:
+  - id: set_label
+    type: io.kestra.plugin.core.execution.Labels
+    labels:
+      file: "{{render(vars.today_file)}}"
+
+    # Download the table using pandas
+  - id: extract
+    type: io.kestra.plugin.scripts.python.Script
+    outputFiles:
+      - '{{render(vars.output_name)}}'
+    taskRunner:
+      type: io.kestra.plugin.core.runner.Process
+    warningOnStdErr: false
+    beforeCommands:
+    - pip install pandas lxml
+    script: | 
+      import pandas as pd
+      import re
+      import requests
+      from datetime import date, timedelta,  datetime
+
+
+      url = '{{render(vars.url)}}'
+      print(url)
+      phl_weather = []
+      
+      try:
+        # Get the average temp
+        response = requests.get(url).json()['observations']
+
+        total = 0
+        num_obs = 0
+        for obs in response:
+          if obs['temp'] != None:
+            total += obs['temp']
+            num_obs += 1
+        avg_temp = total / num_obs
+
+        phl_weather.append([str(datetime.strptime('{{vars.today_file}}', '%Y-%m-%d').date()), avg_temp])
+
+        # Convert to a dataframe
+        cols = ['Date', 'avg_temp']
+        phl_weather = pd.DataFrame(phl_weather, columns=cols)
+
+        # Convert date to date type
+        phl_weather['Date'] = pd.to_datetime(phl_weather['Date'])
+      
+        phl_weather.to_csv('{{render(vars.output_name)}}', index=False)
+      except:
+        phl_weather = pd.DataFrame()
+        phl_weather.to_csv('{{render(vars.output_name)}}', index=False)
+        
+
+# Check if the file exists or not
+  - id: if_not_empty
+    type: io.kestra.plugin.core.flow.If
+    condition: "{{ fileSize(outputs.extract.outputFiles[render(vars.output_name)])  > 3}}"
+    then:
+      
+    - id: upload_gcs
+      type: io.kestra.plugin.gcp.gcs.Upload
+      from: "{{outputs.extract.outputFiles[render(vars.output_name)]}}"
+      to: "{{render(vars.gcs_file)}}"
+
+    - id: bq_weather_ext
+      type: io.kestra.plugin.gcp.bigquery.Query
+      sql: |
+            CREATE OR REPLACE EXTERNAL TABLE {{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}_ext
+            (
+              date DATE OPTIONS(description='Represents date of temp reading')
+              ,avg_temp NUMERIC OPTIONS(description='Represents average temp for specified day')
+            )
+            OPTIONS (
+                format = 'CSV',
+                uris = ['{{render(vars.gcs_file)}}'],
+                skip_leading_rows = 1,
+                ignore_unknown_values = TRUE
+            );  
+
+    - id: bq_weather_merge
+      type: io.kestra.plugin.gcp.bigquery.Query
+      sql: |
+            MERGE INTO {{kv('GCP_PROJECT_ID')}}.{{kv('GCP_DATASET')}}.weather T
+            USING {{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}_ext S
+            ON T.date = S.date
+            WHEN MATCHED THEN
+              UPDATE SET avg_temp = S.avg_temp
+            WHEN NOT MATCHED THEN
+              INSERT (date, avg_temp)
+              VALUES (S.date, S.avg_temp);
+
+    
+
+  #  # Create the BQ table that will hold final data
+  # - id: bq_weather
+  #   type: io.kestra.plugin.gcp.bigquery.Query
+  #   sql: |
+  #         LOAD DATA INTO phillycrime.philly_crime_db.weather
+  #         (
+  #           date DATE OPTIONS(description='Represents date of temp reading')
+  #           ,avg_temp NUMERIC OPTIONS(description='Represents average temp for specified day')
+  #         )
+  #         FROM FILES (
+  #           skip_leading_rows=1,
+  #           format = 'CSV',
+  #           uris = ['{{render(vars.gcs_file)}}']);
+
+  
+
+
+  - id: purge_files
+    type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
+
+    # Delete bucket after use 
+  - id: delete
+    type: io.kestra.plugin.gcp.gcs.Delete
+    uri: gs://{{kv('GCP_BUCKET_NAME')}}/{{render(vars.output_name)}}
+
+pluginDefaults:
+  - type: io.kestra.plugin.gcp
+    values:
+      serviceAccount: "{{kv('GCP_CREDS')}}"
+      projectId: "{{kv('GCP_PROJECT_ID')}}"
+      location: "{{kv('GCP_LOCATION')}}"
+      bucket: "{{kv('GCP_BUCKET_NAME')}}"
+
+triggers:
+  - id: schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "58 23 * * *"
+    timezone: America/New_York
+
+
