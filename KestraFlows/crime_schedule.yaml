@@ -218,6 +218,7 @@ triggers:
   - id: crime_schedule
     type: io.kestra.plugin.core.trigger.Schedule
     cron: "0 13 * * *"
+    timezone: America/New_York
     inputs:
       year: 2025
 
