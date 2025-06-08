@@ -85,7 +85,7 @@ tasks:
             CREATE OR REPLACE EXTERNAL TABLE {{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}}_ext
             (
               date DATE OPTIONS(description='Represents date of temp reading')
-              ,avg_temp NUMERIC OPTIONS(description='Represents average temp for specified day')
+              ,avg_temp BIGNUMERIC OPTIONS(description='Represents average temp for specified day')
             )
             OPTIONS (
                 format = 'CSV',

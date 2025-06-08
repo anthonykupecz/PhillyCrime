@@ -53,9 +53,11 @@ tasks:
         type: io.kestra.plugin.core.runner.Process
       warningOnStdErr: false
       beforeCommands:
-      - pip install pandas
+      - pip install pandas geopy
       script: | 
         import pandas as pd
+        from geopy.geocoders import Nominatim
+        from geopy.extra.rate_limiter import RateLimiter
         
         # Load csv
         df = pd.read_csv("{{render(vars.data_post)}}")
@@ -67,6 +69,24 @@ tasks:
         df['dispatch_date'] = pd.to_datetime(df['dispatch_date'])
         df['hour'] = df['hour'].astype(int)
         
+        # Only get past weeks worth as to not have to find zip for everything again
+        # df[pd.to_datetime(df['dispatch_date']) >= pd.to_datetime(datetime.date.today() - timedelta(days=7))]
+        geolocator = Nominatim(user_agent="zipcode_lookup")
+        reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
+
+        def get_zip(row):
+            try:
+                location = reverse((row['lat'], row['lng']), exactly_one=True)
+                if location and 'postcode' in location.raw['address']:
+                    return location.raw['address']['postcode']
+                else:
+                    return None
+            except Exception as e:
+                return None
+
+        df['zip'] = df.apply(get_zip, axis=1)
+        df['zip'] = df['zip'].astype('Int64')
+
         df.to_csv('{{render(vars.output_name)}}', index=False)
 
     - id: upload_gcs_post
@@ -97,9 +117,11 @@ tasks:
         type: io.kestra.plugin.core.runner.Process
       warningOnStdErr: false
       beforeCommands:
-      - pip install pandas
+      - pip install pandas geopy
       script: | 
         import pandas as pd
+        from geopy.geocoders import Nominatim
+        from geopy.extra.rate_limiter import RateLimiter
         
         # Load csv
         df = pd.read_csv("{{render(vars.data_pre)}}")
@@ -110,7 +132,23 @@ tasks:
         df['hour'] = df['hour'].fillna(0)
         df['dispatch_date'] = pd.to_datetime(df['dispatch_date'])
         df['hour'] = df['hour'].astype(int)
-        
+
+        geolocator = Nominatim(user_agent="zipcode_lookup")
+        reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
+
+        def get_zip(row):
+            try:
+                location = reverse((row['lat'], row['lng']), exactly_one=True)
+                if location and 'postcode' in location.raw['address']:
+                    return location.raw['address']['postcode']
+                else:
+                    return None
+            except Exception as e:
+                return None
+
+        df['zip'] = df.apply(get_zip, axis=1)
+        df['zip'] = df['zip'].astype('Int64')
+
         df.to_csv('{{render(vars.output_name)}}', index=False)
 
     - id: upload_gcs_pre
@@ -134,7 +172,8 @@ tasks:
             ,text_general_code STRING OPTIONS(description='String representing category of crime committed')
             ,ucr_general INTEGER OPTIONS(description='The rounded crime code')
             ,lat BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of crime')
-            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime ')
+            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime')
+            ,zip INTEGER OPTIONS(description='Zipcode the crime happened in')
           )
           PARTITION BY dispatch_date;
 
@@ -152,7 +191,8 @@ tasks:
             ,text_general_code STRING OPTIONS(description='String representing category of crime committed')
             ,ucr_general INTEGER OPTIONS(description='The rounded crime code')
             ,lat BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of crime')
-            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime ')
+            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime')
+            ,zip INTEGER OPTIONS(description='Zipcode the crime happened in')
           )
           OPTIONS (
               format = 'CSV',
@@ -184,8 +224,8 @@ tasks:
           USING {{kv('GCP_PROJECT_ID')}}.{{render(vars.table)}} S
           ON T.unique_row_id = S.unique_row_id
           WHEN NOT MATCHED THEN
-            INSERT (unique_row_id, filename, objectid, dc_dist, dispatch_date, hour, location_block, text_general_code, ucr_general, lat, lng)
-            VALUES (S.unique_row_id, S.filename, S.objectid, S.dc_dist, S.dispatch_date, S.hour, S.location_block, S.text_general_code, S.ucr_general, S.lat, S.lng);
+            INSERT (unique_row_id, filename, objectid, dc_dist, dispatch_date, hour, location_block, text_general_code, ucr_general, lat, lng, zip)
+            VALUES (S.unique_row_id, S.filename, S.objectid, S.dc_dist, S.dispatch_date, S.hour, S.location_block, S.text_general_code, S.ucr_general, S.lat, S.lng, S.zip);
 
   - id: purge_files
     type: io.kestra.plugin.core.storage.PurgeCurrentExecutionFiles
@@ -221,4 +261,5 @@ triggers:
     timezone: America/New_York
     inputs:
       year: 2025
+      
 
