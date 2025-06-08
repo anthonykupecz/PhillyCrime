@@ -70,7 +70,7 @@ tasks:
         df['hour'] = df['hour'].astype(int)
         
         # Only get past weeks worth as to not have to find zip for everything again
-        df[pd.to_datetime(df['dispatch_date']) >= pd.to_datetime(datetime.date.today() - timedelta(days=7))]
+        # df[pd.to_datetime(df['dispatch_date']) >= pd.to_datetime(datetime.date.today() - timedelta(days=7))]
         geolocator = Nominatim(user_agent="zipcode_lookup")
         reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
 
@@ -85,7 +85,7 @@ tasks:
                 return None
 
         df['zip'] = df.apply(get_zip, axis=1)
-        df['zip'] = df['zip'].astype(int)
+        df['zip'] = df['zip'].astype('Int64')
 
         df.to_csv('{{render(vars.output_name)}}', index=False)
 
@@ -147,7 +147,7 @@ tasks:
                 return None
 
         df['zip'] = df.apply(get_zip, axis=1)
-        df['zip'] = df['zip'].astype(int)
+        df['zip'] = df['zip'].astype('Int64')
 
         df.to_csv('{{render(vars.output_name)}}', index=False)
 
@@ -172,8 +172,8 @@ tasks:
             ,text_general_code STRING OPTIONS(description='String representing category of crime committed')
             ,ucr_general INTEGER OPTIONS(description='The rounded crime code')
             ,lat BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of crime')
-            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime '
-            ,zip INTEGER OPTIONS(description='Zipcode the crime happened in'))
+            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime')
+            ,zip INTEGER OPTIONS(description='Zipcode the crime happened in')
           )
           PARTITION BY dispatch_date;
 
@@ -191,8 +191,8 @@ tasks:
             ,text_general_code STRING OPTIONS(description='String representing category of crime committed')
             ,ucr_general INTEGER OPTIONS(description='The rounded crime code')
             ,lat BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of crime')
-            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime '
-            ,zip INTEGER OPTIONS(description='Zipcode the crime happened in'))
+            ,lng BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of crime')
+            ,zip INTEGER OPTIONS(description='Zipcode the crime happened in')
           )
           OPTIONS (
               format = 'CSV',
