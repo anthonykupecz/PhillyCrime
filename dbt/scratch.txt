@@ -1,22 +1,3 @@
-DBT:
-TABLES:
-    income —> no changes needed
-
-    phillycrimes (staging -> fact_crimes)
-        unique_row_id, filename, objectid, dc_dist, dispatch_date, hour, location_block, text_general_code, ucr_general, lat, lng, zip
-
-    playground (staging -> fact_crimes)
-        X, Y, OBJECTID, PARK_NAME, AGE_RANGE, zip
-
-
-    weather (staging -< fact_crimes)
-        date, avg_temp
-
-
-
-DIM Date
---> date_key, dispatch date, hour, type (early morning, morning, etc) 
-
 DIM crime
 --> unique_row_id, filename, objectid, dc_dist, dispatch_date, location_block
 
@@ -59,3 +40,39 @@ STAGING PHILLYCRIMES:
 1. Can convert hour into something like early morning, morning, afternoon, evening, late evening
 2. Can convert dispatch date into year, month, day of week
 3. Convert UCR to violent (<800) and nonviolent crimes. 
+
+
+DBT:
+TABLES:
+    income —> no changes needed
+
+    phillycrimes (staging -> fact_crimes)
+        unique_row_id, filename, objectid, dc_dist, dispatch_date, hour, location_block, text_general_code, ucr_general, lat, lng, zip
+
+    playground (staging -> fact_crimes)
+        X, Y, OBJECTID, PARK_NAME, AGE_RANGE, zip
+
+
+    weather (staging -< fact_crimes)
+        date, avg_temp
+
+
+
+DIM Date
+--> date_key, dispatch date, hour, type (early morning, morning, etc) 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
