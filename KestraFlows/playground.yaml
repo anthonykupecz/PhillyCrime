@@ -60,7 +60,7 @@ tasks:
       for loc in gj['features']:
           objectid = loc['properties']['OBJECTID']
           park_name = loc['properties']['PARK_NAME']
-          age_range = loc['properties']['OBJECTID']
+          age_range = loc['properties']['AGE_RANGE']
           lng = loc['geometry']['coordinates'][0]
           lat = loc['geometry']['coordinates'][1]
 
