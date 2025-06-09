@@ -1,3 +1,9 @@
+{{
+    config(
+        materialized='view'
+    )
+}}
+
 with crime as (
     select 
         {{ dbt_utils.generate_surrogate_key(['dispatch_date', 'hour']) }} as date_key

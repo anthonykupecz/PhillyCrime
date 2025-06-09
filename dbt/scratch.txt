@@ -1,9 +1,10 @@
-DIM crime
---> unique_row_id, filename, objectid, dc_dist, dispatch_date, location_block
 
 
-DIM location:
----> lat, lng, zip
+
+DIMDATE: date_key, dispatch_date, month, day, year, day_name, hour, time_cat
+DIMCRIME_CAT: ucr_general, text_general_code, crime_level
+DIM_LOCATION: loc_key, dc_dist, lat, lng, zip 
+
 
 
 
@@ -14,7 +15,8 @@ FACT CRIMES:
 ----> Will want to filter to where the haversine distance between crime and park is less than 1 mile
 ----> Will want to collapse the parks into a list 
 
-
+FACT CRIMES:
+unique_row_id, date_key, loc_key, ucr_general
 
 
 
@@ -67,6 +69,8 @@ Theft from Vehicle                       600            10837
 Thefts                                   600            40419
 
 
+DIM location:
+---> lat, lng, zip
 
 
 
