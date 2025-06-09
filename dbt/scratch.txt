@@ -1,23 +1,6 @@
 DIM crime
 --> unique_row_id, filename, objectid, dc_dist, dispatch_date, location_block
 
-DIM crime_cat
---> ucr_general, text_general_code, Level 
-CONVERT:
-Aggravated Assault Firearm               400             2810
-Aggravated Assault No Firearm            400             5593
-
-Burglary Non-Residential                 500             1581
-Burglary Residential                     500             3461
-
-Homicide - Criminal                      100              268
-Homicide - Justifiable                   100                1
-
-Robbery Firearm                          300             1691
-Robbery No Firearm                       300             2631
-Theft from Vehicle                       600            10837
-Thefts                                   600            40419
-
 
 DIM location:
 ---> lat, lng, zip
@@ -30,6 +13,11 @@ FACT CRIMES:
 2. Join philly crimes with playground data to get playgrounds with crimes 
 ----> Will want to filter to where the haversine distance between crime and park is less than 1 mile
 ----> Will want to collapse the parks into a list 
+
+
+
+
+
 
 DONE:
 STAGING PLAYGROUND:
@@ -61,7 +49,22 @@ TABLES:
 DIM Date
 --> date_key, dispatch date, hour, type (early morning, morning, etc) 
 
+DIM crime_cat
+--> ucr_general, text_general_code, Level 
+CONVERT:
+Aggravated Assault Firearm               400             2810
+Aggravated Assault No Firearm            400             5593
 
+Burglary Non-Residential                 500             1581
+Burglary Residential                     500             3461
+
+Homicide - Criminal                      100              268
+Homicide - Justifiable                   100                1
+
+Robbery Firearm                          300             1691
+Robbery No Firearm                       300             2631
+Theft from Vehicle                       600            10837
+Thefts                                   600            40419
 
 
 
