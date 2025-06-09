@@ -1,6 +1,13 @@
+{{
+    config(
+        materialized='view'
+    )
+}}
+
 with loc as (
     select 
-         {{ dbt_utils.generate_surrogate_key(['lat', 'lng']) }} as loc_key
+         {{ dbt_utils.generate_surrogate_key(['lat', 'lng', 'dc_dist']) }} as loc_key
+         ,dc_dist
          ,lat
          ,lng
          ,zip
@@ -16,6 +23,7 @@ loc_row as (
 
 SELECT
     loc_key
+    ,dc_dist
     ,lat
     ,lng
     ,zip
