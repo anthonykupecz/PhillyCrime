@@ -4,10 +4,74 @@ sources:
   - name: stg
     database: phillycrime
     schema: philly_crime_db
-
-  
     tables:
       - name: income
       - name: phillycrimes
       - name: playground
       - name: weather
+
+models:
+    - name: stg_philly_crimes
+      description: >
+        Records of crime in philadelphia 
+      columns:
+          - name: unique_row_id
+            tests:
+                - unique:
+                    severity: warn
+                - not_null:
+                    severity: warn
+          - name: filename 
+          - name: objectid 
+          - name: dc_dist 
+          - name: dispatch_date
+            tests:
+                - not_null:
+                    severity: warn 
+          - name: month 
+          - name: day 
+          - name: year 
+          - name: day_name 
+          - name: hour
+          - name: time_cat 
+          - name: text_general_code 
+          - name: ucr_general 
+          - name: crime_level 
+          - name: lat
+          - name: lng
+          - name: zip
+      
+    - name: stg_playground
+      description: "Philly playgrounds."
+      columns:
+        - name: objectid
+          data_type: int64
+          description: ""
+          tests:
+              - unique:
+                  severity: warn
+
+        - name: park_name
+          data_type: string
+          description: ""
+
+        - name: age_range
+          data_type: string
+          description: ""
+
+        - name: playground_cat
+          data_type: string
+          description: ""
+
+        - name: lng
+          data_type: numeric
+          description: ""
+
+        - name: lat
+          data_type: numeric
+          description: ""
+
+        - name: zip
+          data_type: int64
+          description: ""
+
