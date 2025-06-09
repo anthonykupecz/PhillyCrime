@@ -1,0 +1,61 @@
+DBT:
+TABLES:
+    income —> no changes needed
+
+    phillycrimes (staging -> fact_crimes)
+        unique_row_id, filename, objectid, dc_dist, dispatch_date, hour, location_block, text_general_code, ucr_general, lat, lng, zip
+
+    playground (staging -> fact_crimes)
+        X, Y, OBJECTID, PARK_NAME, AGE_RANGE, zip
+
+
+    weather (staging -< fact_crimes)
+        date, avg_temp
+
+
+
+DIM Date
+--> date_key, dispatch date, hour, type (early morning, morning, etc) 
+
+DIM crime
+--> unique_row_id, filename, objectid, dc_dist, dispatch_date, location_block
+
+DIM crime_cat
+--> ucr_general, text_general_code, Level 
+CONVERT:
+Aggravated Assault Firearm               400             2810
+Aggravated Assault No Firearm            400             5593
+
+Burglary Non-Residential                 500             1581
+Burglary Residential                     500             3461
+
+Homicide - Criminal                      100              268
+Homicide - Justifiable                   100                1
+
+Robbery Firearm                          300             1691
+Robbery No Firearm                       300             2631
+Theft from Vehicle                       600            10837
+Thefts                                   600            40419
+
+
+DIM location:
+---> lat, lng, zip
+
+
+
+
+FACT CRIMES:
+1. Join philly crimes with weather data to get temp for the dispatch date
+2. Join philly crimes with playground data to get playgrounds with crimes 
+----> Will want to filter to where the haversine distance between crime and park is less than 1 mile
+----> Will want to collapse the parks into a list 
+
+DONE:
+STAGING PLAYGROUND:
+1. Convert X --> lng, y --> lat, OBJECTID --> objectid, PARK_NAME --> name, AGE_RANGE --> age_range, zip --> zip 
+2. CONVERT AGE_RANGE to ['5_12_YEARS' --> child, 'UNKNOWN' --> NA, '2_12_YEARS' --> mixed_age, '2_5_YEARS' --> preschool, ' ' --> NA]
+
+STAGING PHILLYCRIMES:
+1. Can convert hour into something like early morning, morning, afternoon, evening, late evening
+2. Can convert dispatch date into year, month, day of week
+3. Convert UCR to violent (<800) and nonviolent crimes. 
