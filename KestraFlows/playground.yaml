@@ -5,11 +5,11 @@ description: |
 
  
 variables:
-  url: 'https://opendata.arcgis.com/datasets/899c807e205244278b3f39421be8489c_0.csv'
-  output_name: "philly_playground.csv"
-  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/{{vars.output_name}}"
+  url: 'https://opendata.arcgis.com/datasets/899c807e205244278b3f39421be8489c_0.geojson'
+  output_name: "philly_playground.geojson"
+  gcs_file: "gs://{{kv('GCP_BUCKET_NAME')}}/philly_playground.csv"
   table: "{{kv('GCP_DATASET')}}.philly_playground"
-  data: "{{outputs.extract.outputFiles['philly_playground.csv']}}"
+  data: "{{outputs.extract.outputFiles['philly_playground.geojson']}}"
 
 
 tasks:
@@ -22,7 +22,7 @@ tasks:
   - id: extract
     type: io.kestra.plugin.scripts.shell.Commands
     outputFiles:
-      - "*.csv"
+      - "*.geojson"
     taskRunner:
       type: io.kestra.plugin.core.runner.Process
     commands:
@@ -32,45 +32,52 @@ tasks:
   - id: transform_data
     type: io.kestra.plugin.scripts.python.Script
     outputFiles:
-      - '{{render(vars.output_name)}}'
+      - 'philly_playground.csv'
     taskRunner:
       type: io.kestra.plugin.core.runner.Process
     warningOnStdErr: false
     beforeCommands:
-    - pip install pandas
+    - pip install pandas geojson
     script: | 
       import pandas as pd
-      from geopy.geocoders import Nominatim
-      from geopy.extra.rate_limiter import RateLimiter
+      import geojson
+      import requests
+
+      def get_country(lat, lon):
+        url = f'https://nominatim.openstreetmap.org//reverse?lat={lat}&lon={lon}&format=json&addressdetails=1'
+        try:
+          result = requests.get(url=url,headers = {'User-Agent':'me'})
+          result_json = result.json()
+          return result_json['address']['postcode']
+        except:
+          return None  
+
+      playground = []
+
+      with open('{{render(vars.data)}}') as f:
+          gj = geojson.load(f)
       
-      # Load csv
-      df = pd.read_csv("{{render(vars.data)}}")
-      
-      # Clean a little
-      keep_cols = ['X', 'Y', 'OBJECTID', 'PARK_NAME', 'AGE_RANGE']
-      df = df[keep_cols]
+      for loc in gj['features']:
+          objectid = loc['properties']['OBJECTID']
+          park_name = loc['properties']['PARK_NAME']
+          age_range = loc['properties']['OBJECTID']
+          lng = loc['geometry']['coordinates'][0]
+          lat = loc['geometry']['coordinates'][1]
 
-      geolocator = Nominatim(user_agent="zipcode_lookup")
-      reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
+          zip = get_country(lat, lng)
+          playground.append([objectid, park_name, age_range, lng, lat, zip])
 
-      def get_zip(row):
-          try:
-              location = reverse((row['X'], row['Y']), exactly_one=True)
-              if location and 'postcode' in location.raw['address']:
-                  return location.raw['address']['postcode']
-              else:
-                  return None
-          except Exception as e:
-              return None
+      # Convert to a dataframe
+      cols = ['objectid', 'park_name', 'age_range', 'lng', 'lat', 'zip']
+      df = pd.DataFrame(playground, columns=cols)
 
-      df['zip'] = df.apply(get_zip, axis=1)
       df['zip'] = df['zip'].astype('Int64')    
       
-      df.to_csv('{{render(vars.output_name)}}', index=False)
+      df.to_csv('philly_playground.csv', index=False)
 
   - id: upload_gcs
     type: io.kestra.plugin.gcp.gcs.Upload
-    from: "{{outputs.transform_data.outputFiles[render(vars.output_name)]}}"
+    from: "{{outputs.transform_data.outputFiles['philly_playground.csv']}}"
     to: "{{render(vars.gcs_file)}}"
 
    # Create the BQ table that will hold final data
@@ -79,12 +86,12 @@ tasks:
     sql: |
           LOAD DATA OVERWRITE phillycrime.philly_crime_db.playground
           (
-            X BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of playground ')
-            ,Y BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of playground')
-            ,OBJECTID INTEGER OPTIONS(description='Unique identifier for row from the source')
-            ,PARK_NAME STRING OPTIONS(description='String representing the playground name')
-            ,AGE_RANGE STRING OPTIONS(description='String representing age category of playground')
-            ,zip INTEGER OPTIONS(description='zipcode of the park')
+            objectid INTEGER OPTIONS(description='Unique identifier for row from the source')
+            ,park_name STRING OPTIONS(description='String representing the playground name')
+            ,age_range STRING OPTIONS(description='String representing age category of playground')          
+            ,lng BIGNUMERIC OPTIONS(description='Represents the latitude coordinate of playground')
+            ,lat BIGNUMERIC OPTIONS(description='Represents the longitude coordinate of playground ')
+            ,zip INTEGER OPTIONS(description='zipcode of the park')  
           )
           FROM FILES (
             skip_leading_rows=1,

@@ -56,8 +56,9 @@ tasks:
       - pip install pandas geopy
       script: | 
         import pandas as pd
-        from geopy.geocoders import Nominatim
-        from geopy.extra.rate_limiter import RateLimiter
+        import requests
+        from datetime import date, timedelta
+
         
         # Load csv
         df = pd.read_csv("{{render(vars.data_post)}}")
@@ -70,21 +71,18 @@ tasks:
         df['hour'] = df['hour'].astype(int)
         
         # Only get past weeks worth as to not have to find zip for everything again
-        # df[pd.to_datetime(df['dispatch_date']) >= pd.to_datetime(datetime.date.today() - timedelta(days=7))]
-        geolocator = Nominatim(user_agent="zipcode_lookup")
-        reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
+        df[pd.to_datetime(df['dispatch_date']) >= pd.to_datetime(date.today() - timedelta(days=7))]
 
-        def get_zip(row):
-            try:
-                location = reverse((row['lat'], row['lng']), exactly_one=True)
-                if location and 'postcode' in location.raw['address']:
-                    return location.raw['address']['postcode']
-                else:
-                    return None
-            except Exception as e:
-                return None
+        def get_zip(lat, lon):
+          url = f'https://nominatim.openstreetmap.org//reverse?lat={lat}&lon={lon}&format=json&addressdetails=1'
+          try:
+            result = requests.get(url=url,headers = {'User-Agent':'me'})
+            result_json = result.json()
+            return result_json['address']['postcode']
+          except:
+            return None  
 
-        df['zip'] = df.apply(get_zip, axis=1)
+        df['zip'] = df.apply(lambda row: get_zip(row['lat'], row['lng']), axis=1)
         df['zip'] = df['zip'].astype('Int64')
 
         df.to_csv('{{render(vars.output_name)}}', index=False)
@@ -120,8 +118,8 @@ tasks:
       - pip install pandas geopy
       script: | 
         import pandas as pd
-        from geopy.geocoders import Nominatim
-        from geopy.extra.rate_limiter import RateLimiter
+        import requests
+        from datetime import date, timedelta
         
         # Load csv
         df = pd.read_csv("{{render(vars.data_pre)}}")
@@ -133,20 +131,16 @@ tasks:
         df['dispatch_date'] = pd.to_datetime(df['dispatch_date'])
         df['hour'] = df['hour'].astype(int)
 
-        geolocator = Nominatim(user_agent="zipcode_lookup")
-        reverse = RateLimiter(geolocator.reverse, min_delay_seconds=1)
+        def get_zip(lat, lon):
+          url = f'https://nominatim.openstreetmap.org//reverse?lat={lat}&lon={lon}&format=json&addressdetails=1'
+          try:
+            result = requests.get(url=url,headers = {'User-Agent':'me'})
+            result_json = result.json()
+            return result_json['address']['postcode']
+          except:
+            return None  
 
-        def get_zip(row):
-            try:
-                location = reverse((row['lat'], row['lng']), exactly_one=True)
-                if location and 'postcode' in location.raw['address']:
-                    return location.raw['address']['postcode']
-                else:
-                    return None
-            except Exception as e:
-                return None
-
-        df['zip'] = df.apply(get_zip, axis=1)
+        df['zip'] = df.apply(lambda row: get_zip(row['lat'], row['lng']), axis=1)
         df['zip'] = df['zip'].astype('Int64')
 
         df.to_csv('{{render(vars.output_name)}}', index=False)
